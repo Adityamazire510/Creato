@@ -5,21 +5,18 @@
 import { icon } from './utils/icons.js';
 import { escapeHtml } from './utils/helpers.js';
 import { 
-  getProjects, getTrashedProjects, createProject, trashProject, 
-  getBrandKit, saveBrandKit, getSettings, saveSettings, 
-  getNotifications, markNotificationsRead, getAuthUser 
+  getProjects, getTrashedProjects, createProject, 
+  getBrandKit, getSettings, getNotifications, getAuthUser 
 } from './store.js';
 
 import { renderLandingPage } from './modules/landing.js';
-import { CanvasEngine } from './editor/canvas.js';
-import { renderLayerTree } from './editor/layers.js';
+import { renderFullEditorWorkspace } from './editor/editor-view.js';
 import { renderAIStudio } from './modules/ai-studio.js';
 import { renderAnimationStudio } from './modules/animation.js';
 import { renderAdminPanel } from './modules/admin.js';
-import { renderAuthModal } from './modules/auth.js';
 
 let activeView = 'landing';
-let canvasEngine = null;
+let currentEditingProject = null;
 
 document.addEventListener('DOMContentLoaded', () => {
   initRouter();
@@ -28,11 +25,10 @@ document.addEventListener('DOMContentLoaded', () => {
 function initRouter() {
   const appContainer = document.getElementById('app');
   if (!appContainer) return;
-
   renderView('landing');
 }
 
-export function renderView(viewName) {
+export function renderView(viewName, projectData = null) {
   activeView = viewName;
   const container = document.getElementById('app');
   if (!container) return;
@@ -43,7 +39,9 @@ export function renderView(viewName) {
   }
 
   if (viewName === 'editor') {
-    renderEditorWorkspace(container);
+    const projects = getProjects();
+    const targetProject = projectData || currentEditingProject || projects[0] || { name: 'Untitled Design', width: 1080, height: 1080 };
+    renderFullEditorWorkspace(container, targetProject, () => renderView('dashboard'));
     return;
   }
 
@@ -133,8 +131,9 @@ function renderAppShell(container, currentTab) {
   });
 
   document.getElementById('shell-new-design-btn')?.addEventListener('click', () => {
-    const proj = createProject({ name: 'Untitled Graphic', width: 1080, height: 1080 });
-    renderView('editor');
+    const proj = createProject({ name: 'Picsart Canvas Design', width: 1080, height: 1080 });
+    currentEditingProject = proj;
+    renderView('editor', proj);
   });
 
   // Render Inner View Content
@@ -165,17 +164,17 @@ function renderDashboardView(container) {
       <div class="quick-actions-grid">
         <div class="action-card" data-create="1080,1080,Instagram Post">
           <div class="action-card-icon" style="background: rgba(236,72,153,0.15); color: hsl(var(--brand-pink));">${icon('square')}</div>
-          <span class="action-card-label">Instagram Post</span>
+          <span class="action-card-label">Instagram Square</span>
           <span class="action-card-size">1080 × 1080 px</span>
         </div>
-        <div class="action-card" data-create="1920,1080,Presentation">
+        <div class="action-card" data-create="1080,1920,Instagram Story">
           <div class="action-card-icon" style="background: rgba(124,58,237,0.15); color: hsl(var(--brand-primary));">${icon('grid')}</div>
-          <span class="action-card-label">Presentation</span>
-          <span class="action-card-size">1920 × 1080 px</span>
+          <span class="action-card-label">Story Format</span>
+          <span class="action-card-size">1080 × 1920 px</span>
         </div>
         <div class="action-card" data-create="1280,720,YouTube Thumbnail">
           <div class="action-card-icon" style="background: rgba(239,68,68,0.15); color: #EF4444;">${icon('film')}</div>
-          <span class="action-card-label">YouTube Banner</span>
+          <span class="action-card-label">YouTube Thumbnail</span>
           <span class="action-card-size">1280 × 720 px</span>
         </div>
       </div>
@@ -206,13 +205,20 @@ function renderDashboardView(container) {
   container.querySelectorAll('[data-create]').forEach(card => {
     card.addEventListener('click', () => {
       const [w, h, name] = card.dataset.create.split(',');
-      createProject({ name, width: parseInt(w), height: parseInt(h) });
-      renderView('editor');
+      const proj = createProject({ name, width: parseInt(w), height: parseInt(h) });
+      currentEditingProject = proj;
+      renderView('editor', proj);
     });
   });
 
   container.querySelectorAll('[data-open-project]').forEach(card => {
-    card.addEventListener('click', () => renderView('editor'));
+    card.addEventListener('click', () => {
+      const proj = getProjects().find(p => p.id === card.dataset.openProject);
+      if (proj) {
+        currentEditingProject = proj;
+        renderView('editor', proj);
+      }
+    });
   });
 }
 
@@ -237,7 +243,13 @@ function renderProjectsView(container) {
   `;
 
   container.querySelectorAll('[data-open-project]').forEach(card => {
-    card.addEventListener('click', () => renderView('editor'));
+    card.addEventListener('click', () => {
+      const proj = getProjects().find(p => p.id === card.dataset.openProject);
+      if (proj) {
+        currentEditingProject = proj;
+        renderView('editor', proj);
+      }
+    });
   });
 }
 
@@ -276,130 +288,4 @@ function renderTrashView(container) {
       `).join('')}
     </div>
   `;
-}
-
-// ============================================
-// FIGMA + CANVA + PHOTOPEA STYLE CANVAS EDITOR
-// ============================================
-function renderEditorWorkspace(container) {
-  const activeProjects = getProjects();
-  const currentProject = activeProjects[0] || { name: 'Untitled Graphic', width: 1080, height: 1080 };
-
-  container.innerHTML = `
-    <div class="editor-workspace">
-      <!-- Top Header -->
-      <div class="editor-topbar">
-        <div class="editor-topbar-left">
-          <button class="editor-back-btn" id="editor-back-dashboard">${icon('arrowRight')}</button>
-          <input type="text" class="editor-project-title-input" value="${escapeHtml(currentProject.name)}" />
-        </div>
-
-        <div class="editor-topbar-center">
-          <button class="editor-history-btn" id="tool-undo">${icon('rotateCcw')}</button>
-          <button class="editor-history-btn" id="tool-redo">${icon('rotateCw')}</button>
-        </div>
-
-        <div class="editor-topbar-right">
-          <button class="btn-export" id="editor-export-btn">${icon('download')} Export Asset</button>
-        </div>
-      </div>
-
-      <!-- Editor Main Body -->
-      <div class="editor-main-body">
-        <!-- Left Tool Ribbon -->
-        <div class="editor-left-tools">
-          <button class="tool-btn active" data-tool="select">
-            ${icon('cursor')}
-            <span class="tool-label">Select</span>
-          </button>
-          <button class="tool-btn" data-tool="rect">
-            ${icon('square')}
-            <span class="tool-label">Rect</span>
-          </button>
-          <button class="tool-btn" data-tool="circle">
-            ${icon('circle')}
-            <span class="tool-label">Circle</span>
-          </button>
-          <button class="tool-btn" data-tool="triangle">
-            ${icon('triangle')}
-            <span class="tool-label">Triangle</span>
-          </button>
-          <button class="tool-btn" data-tool="text">
-            ${icon('type')}
-            <span class="tool-label">Text</span>
-          </button>
-        </div>
-
-        <!-- Canvas Stage -->
-        <div class="editor-canvas-viewport">
-          <div class="editor-canvas-stage">
-            <canvas id="editor-real-canvas"></canvas>
-          </div>
-          <div class="canvas-zoom-bar">100% Canvas</div>
-        </div>
-
-        <!-- Right Properties & Layers Panel -->
-        <div class="editor-right-panel">
-          <div class="panel-tabs">
-            <div class="panel-tab active" id="tab-props">Properties</div>
-            <div class="panel-tab" id="tab-layers">Layers</div>
-          </div>
-
-          <div class="panel-section" id="inspector-content">
-            <div class="panel-section-title">Canvas Dimensions</div>
-            <div class="prop-row">
-              <span class="prop-label">Width</span>
-              <input type="text" class="prop-input" value="${currentProject.width}px" readonly />
-            </div>
-            <div class="prop-row">
-              <span class="prop-label">Height</span>
-              <input type="text" class="prop-input" value="${currentProject.height}px" readonly />
-            </div>
-          </div>
-
-          <div class="panel-section" id="layers-container"></div>
-        </div>
-      </div>
-    </div>
-  `;
-
-  // Initialize Interactive Canvas Engine
-  const canvasEl = document.getElementById('editor-real-canvas');
-  if (canvasEl) {
-    canvasEngine = new CanvasEngine(canvasEl, currentProject.width || 1080, currentProject.height || 1080);
-    canvasEngine.setElements(currentProject.elements || []);
-
-    const layersContainer = document.getElementById('layers-container');
-    renderLayerTree(layersContainer, canvasEngine);
-
-    // Bind Tool Switches
-    container.querySelectorAll('[data-tool]').forEach(btn => {
-      btn.addEventListener('click', () => {
-        container.querySelectorAll('[data-tool]').forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-        const tool = btn.dataset.tool;
-
-        if (tool === 'rect') canvasEngine.addElement('rect', { fill: '#7C3AED', width: 220, height: 160 });
-        else if (tool === 'circle') canvasEngine.addElement('circle', { fill: '#3B82F6', width: 180, height: 180 });
-        else if (tool === 'triangle') canvasEngine.addElement('triangle', { fill: '#EC4899', width: 200, height: 200 });
-        else if (tool === 'text') canvasEngine.addElement('text', { text: 'CREATO VECTOR TEXT', fill: '#121226', fontSize: 36 });
-
-        renderLayerTree(layersContainer, canvasEngine);
-      });
-    });
-  }
-
-  document.getElementById('editor-back-dashboard')?.addEventListener('click', () => {
-    renderView('dashboard');
-  });
-
-  document.getElementById('editor-export-btn')?.addEventListener('click', () => {
-    if (canvasEl) {
-      const dataUrl = canvasEl.toDataURL('image/png');
-      const a = document.createElement('a');
-      a.href = dataUrl;
-      a.download = 'creato-design.png';
-      a.click();
-    }
-  });
 }
