@@ -1,5 +1,5 @@
 // ============================================
-// CREATO — Left Drawer Panel (Picsart Style Multi-Tab)
+// CREATO — Left Drawer Panel (Photos, Uploads, Backgrounds & Templates)
 // ============================================
 
 import { icon } from '../utils/icons.js';
@@ -85,10 +85,18 @@ export class EditorDrawer {
 
   renderPhotosTab() {
     return `
-      <input type="text" class="form-input" id="drawer-photo-search" placeholder="Search stock photos..." style="margin-bottom: 12px;" />
+      <!-- Upload Local Photo Button -->
+      <div style="margin-bottom: 16px;">
+        <button class="btn btn-primary" id="btn-upload-local-photo" style="width: 100%; justify-content: center; gap: 8px; padding: 10px; font-size: 13px;">
+          ${icon('upload')} Upload Photo from Device
+        </button>
+        <input type="file" id="input-local-photo" style="display: none;" accept="image/*" />
+      </div>
+
+      <h4 style="font-size: 12px; font-weight: 700; color: var(--text-tertiary); text-transform: uppercase; margin-bottom: 8px;">Stock Photos</h4>
       <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
         ${STOCK_PHOTOS.map(p => `
-          <div class="photo-asset-item" data-add-photo="${p.url}" style="height: 90px; border-radius: var(--radius-md); overflow: hidden; cursor: pointer; position: relative;">
+          <div class="photo-asset-item" data-add-photo="${p.url}" style="height: 95px; border-radius: var(--radius-md); overflow: hidden; cursor: pointer; position: relative; border: 1px solid var(--border-subtle);">
             <img src="${p.url}" alt="${p.title}" style="width:100%; height:100%; object-fit: cover; transition: transform 0.3s;" />
           </div>
         `).join('')}
@@ -137,6 +145,14 @@ export class EditorDrawer {
 
   renderBackgroundsTab() {
     return `
+      <!-- Upload Custom Background Image Button -->
+      <div style="margin-bottom: 16px;">
+        <button class="btn btn-primary" id="btn-upload-local-bg" style="width: 100%; justify-content: center; gap: 8px; padding: 10px; font-size: 13px;">
+          ${icon('image')} Upload Custom Background Image
+        </button>
+        <input type="file" id="input-local-bg" style="display: none;" accept="image/*" />
+      </div>
+
       <h4 style="font-size: 12px; font-weight: 700; color: var(--text-tertiary); text-transform: uppercase; margin-bottom: 8px;">Color & Gradient Presets</h4>
       <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px;">
         ${BACKGROUND_PRESETS.map(bg => `
@@ -168,6 +184,57 @@ export class EditorDrawer {
   }
 
   bindEvents() {
+    // Photos: Click Stock Photo -> Add to Canvas
+    this.drawer.querySelectorAll('[data-add-photo]').forEach(item => {
+      item.addEventListener('click', () => {
+        const photoUrl = item.dataset.addPhoto;
+        if (this.canvasEngine) {
+          this.canvasEngine.addImageElement(photoUrl);
+        }
+      });
+    });
+
+    // Photos: Upload Local Image
+    const localPhotoInput = document.getElementById('input-local-photo');
+    document.getElementById('btn-upload-local-photo')?.addEventListener('click', () => localPhotoInput?.click());
+    localPhotoInput?.addEventListener('change', (e) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (evt) => {
+        if (this.canvasEngine) {
+          this.canvasEngine.addImageElement(evt.target.result);
+        }
+      };
+      reader.readAsDataURL(file);
+    });
+
+    // Backgrounds: Solid / Gradient Click
+    this.drawer.querySelectorAll('[data-set-bg]').forEach(item => {
+      item.addEventListener('click', () => {
+        const bgVal = item.dataset.setBg;
+        const stage = document.querySelector('.editor-canvas-stage');
+        if (stage) stage.style.background = bgVal;
+        this.canvasEngine.backgroundImageObj = null;
+        this.canvasEngine.render();
+      });
+    });
+
+    // Backgrounds: Upload Custom Background Image
+    const localBgInput = document.getElementById('input-local-bg');
+    document.getElementById('btn-upload-local-bg')?.addEventListener('click', () => localBgInput?.click());
+    localBgInput?.addEventListener('change', (e) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (evt) => {
+        if (this.canvasEngine) {
+          this.canvasEngine.setBackgroundImage(evt.target.result);
+        }
+      };
+      reader.readAsDataURL(file);
+    });
+
     // Templates
     this.drawer.querySelectorAll('[data-load-template]').forEach(card => {
       card.addEventListener('click', () => {
@@ -210,16 +277,7 @@ export class EditorDrawer {
       });
     });
 
-    // Backgrounds
-    this.drawer.querySelectorAll('[data-set-bg]').forEach(item => {
-      item.addEventListener('click', () => {
-        const bgVal = item.dataset.setBg;
-        const stage = document.querySelector('.editor-canvas-stage');
-        if (stage) stage.style.background = bgVal;
-      });
-    });
-
-    // Uploads
+    // Uploads Tab Action
     const fileInput = document.getElementById('real-upload-input');
     document.getElementById('upload-file-btn')?.addEventListener('click', () => fileInput?.click());
     fileInput?.addEventListener('change', (e) => {
@@ -227,7 +285,9 @@ export class EditorDrawer {
       if (!file) return;
       const reader = new FileReader();
       reader.onload = (evt) => {
-        this.canvasEngine.addElement('rect', { fill: '#3B82F6', width: 300, height: 200 });
+        if (this.canvasEngine) {
+          this.canvasEngine.addImageElement(evt.target.result);
+        }
       };
       reader.readAsDataURL(file);
     });
