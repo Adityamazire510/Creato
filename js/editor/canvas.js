@@ -1,5 +1,5 @@
 // ============================================
-// CREATO — Interactive Canvas Engine with Image & Background Support
+// CREATO — Interactive Canvas Engine with Mouse Drag Resizing & Corner Handles
 // ============================================
 
 export class CanvasEngine {
@@ -17,6 +17,16 @@ export class CanvasEngine {
     this.isDragging = false;
     this.dragStartX = 0;
     this.dragStartY = 0;
+
+    // Resizing State
+    this.isResizing = false;
+    this.activeHandle = null;
+    this.resizeStartMouseX = 0;
+    this.resizeStartMouseY = 0;
+    this.resizeInitialX = 0;
+    this.resizeInitialY = 0;
+    this.resizeInitialW = 0;
+    this.resizeInitialH = 0;
 
     this.initCanvasSize();
     this.bindEvents();
@@ -84,7 +94,6 @@ export class CanvasEngine {
     const img = new Image();
     img.crossOrigin = 'anonymous';
     img.onload = () => {
-      // Calculate responsive dimensions (max 500px wide/high)
       let w = img.width || 400;
       let h = img.height || 300;
       const maxDim = 450;
@@ -160,7 +169,7 @@ export class CanvasEngine {
   render() {
     this.ctx.clearRect(0, 0, this.width, this.height);
 
-    // 1. Draw Background (Solid / Gradient / Image)
+    // 1. Draw Background
     if (this.backgroundImageObj) {
       this.ctx.drawImage(this.backgroundImageObj, 0, 0, this.width, this.height);
     } else {
@@ -225,30 +234,52 @@ export class CanvasEngine {
     });
   }
 
+  getHandles(el) {
+    const handleSize = 12;
+    return {
+      nw: { x: el.x - handleSize / 2, y: el.y - handleSize / 2, size: handleSize },
+      ne: { x: el.x + el.width - handleSize / 2, y: el.y - handleSize / 2, size: handleSize },
+      sw: { x: el.x - handleSize / 2, y: el.y + el.height - handleSize / 2, size: handleSize },
+      se: { x: el.x + el.width - handleSize / 2, y: el.y + el.height - handleSize / 2, size: handleSize },
+    };
+  }
+
   drawSelectionBox(el) {
     this.ctx.save();
     this.ctx.strokeStyle = '#06B6D4';
     this.ctx.lineWidth = 2.5;
-    this.ctx.strokeRect(el.x - 3, el.y - 3, el.width + 6, el.height + 6);
+    this.ctx.strokeRect(el.x - 2, el.y - 2, el.width + 4, el.height + 4);
 
     // Corner Handles
     this.ctx.fillStyle = '#FFFFFF';
     this.ctx.strokeStyle = '#06B6D4';
-    this.ctx.lineWidth = 2;
+    this.ctx.lineWidth = 2.5;
 
-    const handles = [
-      { x: el.x - 7, y: el.y - 7 },
-      { x: el.x + el.width - 1, y: el.y - 7 },
-      { x: el.x - 7, y: el.y + el.height - 1 },
-      { x: el.x + el.width - 1, y: el.y + el.height - 1 },
-    ];
+    const handles = this.getHandles(el);
 
-    handles.forEach(h => {
-      this.ctx.fillRect(h.x, h.y, 8, 8);
-      this.ctx.strokeRect(h.x, h.y, 8, 8);
+    Object.values(handles).forEach(h => {
+      this.ctx.fillRect(h.x, h.y, h.size, h.size);
+      this.ctx.strokeRect(h.x, h.y, h.size, h.size);
     });
 
     this.ctx.restore();
+  }
+
+  getHitHandle(mouseX, mouseY, el) {
+    if (!el || el.id !== this.selectedElementId) return null;
+    const handles = this.getHandles(el);
+
+    for (const [key, h] of Object.entries(handles)) {
+      if (
+        mouseX >= h.x - 4 &&
+        mouseX <= h.x + h.size + 4 &&
+        mouseY >= h.y - 4 &&
+        mouseY <= h.y + h.size + 4
+      ) {
+        return key;
+      }
+    }
+    return null;
   }
 
   bindEvents() {
@@ -259,6 +290,25 @@ export class CanvasEngine {
       const mouseX = (e.clientX - rect.left) * scaleX;
       const mouseY = (e.clientY - rect.top) * scaleY;
 
+      const selEl = this.getSelectedElement();
+
+      // 1. Check Handle Hit for Resizing
+      if (selEl) {
+        const handleHit = this.getHitHandle(mouseX, mouseY, selEl);
+        if (handleHit) {
+          this.isResizing = true;
+          this.activeHandle = handleHit;
+          this.resizeStartMouseX = mouseX;
+          this.resizeStartMouseY = mouseY;
+          this.resizeInitialX = selEl.x;
+          this.resizeInitialY = selEl.y;
+          this.resizeInitialW = selEl.width;
+          this.resizeInitialH = selEl.height;
+          return;
+        }
+      }
+
+      // 2. Element Hit Test (Reverse Order to hit top layers first)
       let hit = null;
       for (let i = this.elements.length - 1; i >= 0; i--) {
         const el = this.elements[i];
@@ -289,25 +339,81 @@ export class CanvasEngine {
     });
 
     this.canvas.addEventListener('mousemove', (e) => {
-      if (!this.isDragging || !this.selectedElementId) return;
-
       const rect = this.canvas.getBoundingClientRect();
       const scaleX = this.width / rect.width;
       const scaleY = this.height / rect.height;
       const mouseX = (e.clientX - rect.left) * scaleX;
       const mouseY = (e.clientY - rect.top) * scaleY;
 
-      const el = this.getSelectedElement();
-      if (el) {
-        el.x = Math.round(mouseX - this.dragStartX);
-        el.y = Math.round(mouseY - this.dragStartY);
+      const selEl = this.getSelectedElement();
+
+      // Handle Resizing Mouse Drag
+      if (this.isResizing && selEl) {
+        const dx = mouseX - this.resizeStartMouseX;
+        const dy = mouseY - this.resizeStartMouseY;
+
+        if (this.activeHandle === 'se') {
+          selEl.width = Math.max(20, Math.round(this.resizeInitialW + dx));
+          selEl.height = Math.max(20, Math.round(this.resizeInitialH + dy));
+        } else if (this.activeHandle === 'sw') {
+          const newW = Math.max(20, Math.round(this.resizeInitialW - dx));
+          selEl.x = this.resizeInitialX + (this.resizeInitialW - newW);
+          selEl.width = newW;
+          selEl.height = Math.max(20, Math.round(this.resizeInitialH + dy));
+        } else if (this.activeHandle === 'ne') {
+          const newH = Math.max(20, Math.round(this.resizeInitialH - dy));
+          selEl.y = this.resizeInitialY + (this.resizeInitialH - newH);
+          selEl.width = Math.max(20, Math.round(this.resizeInitialW + dx));
+          selEl.height = newH;
+        } else if (this.activeHandle === 'nw') {
+          const newW = Math.max(20, Math.round(this.resizeInitialW - dx));
+          const newH = Math.max(20, Math.round(this.resizeInitialH - dy));
+          selEl.x = this.resizeInitialX + (this.resizeInitialW - newW);
+          selEl.y = this.resizeInitialY + (this.resizeInitialH - newH);
+          selEl.width = newW;
+          selEl.height = newH;
+        }
+
         this.render();
-        if (this.onSelectCallback) this.onSelectCallback(el);
+        if (this.onSelectCallback) this.onSelectCallback(selEl);
+        return;
+      }
+
+      // Handle Drag to Move Mouse Drag
+      if (this.isDragging && selEl) {
+        selEl.x = Math.round(mouseX - this.dragStartX);
+        selEl.y = Math.round(mouseY - this.dragStartY);
+        this.render();
+        if (this.onSelectCallback) this.onSelectCallback(selEl);
+        return;
+      }
+
+      // Cursor Feedback
+      if (selEl) {
+        const handleHover = this.getHitHandle(mouseX, mouseY, selEl);
+        if (handleHover === 'nw' || handleHover === 'se') {
+          this.canvas.style.cursor = 'nwse-resize';
+        } else if (handleHover === 'ne' || handleHover === 'sw') {
+          this.canvas.style.cursor = 'nesw-resize';
+        } else if (
+          mouseX >= selEl.x &&
+          mouseX <= selEl.x + selEl.width &&
+          mouseY >= selEl.y &&
+          mouseY <= selEl.y + selEl.height
+        ) {
+          this.canvas.style.cursor = 'move';
+        } else {
+          this.canvas.style.cursor = 'crosshair';
+        }
+      } else {
+        this.canvas.style.cursor = 'crosshair';
       }
     });
 
     window.addEventListener('mouseup', () => {
       this.isDragging = false;
+      this.isResizing = false;
+      this.activeHandle = null;
     });
   }
 
