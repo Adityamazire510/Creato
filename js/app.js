@@ -1,12 +1,12 @@
 // ============================================
-// CREATO — Master Application Orchestrator & Router
+// CREATO — Master Application Orchestrator & 100% Click Handler
 // ============================================
 
 import { icon } from './utils/icons.js';
 import { escapeHtml } from './utils/helpers.js';
 import { 
   getProjects, getTrashedProjects, createProject, 
-  getBrandKit, getSettings, getNotifications, getAuthUser 
+  getBrandKit, getSettings, getNotifications, markNotificationsRead, getAuthUser 
 } from './store.js';
 
 import { renderLandingPage } from './modules/landing.js';
@@ -14,6 +14,7 @@ import { renderFullEditorWorkspace } from './editor/editor-view.js';
 import { renderAIStudio } from './modules/ai-studio.js';
 import { renderAnimationStudio } from './modules/animation.js';
 import { renderAdminPanel } from './modules/admin.js';
+import { PaymentGateway } from './modules/billing.js';
 
 let activeView = 'landing';
 let currentEditingProject = null;
@@ -52,6 +53,7 @@ export function renderView(viewName, projectData = null) {
 function renderAppShell(container, currentTab) {
   const user = getAuthUser();
   const settings = getSettings();
+  const unreadNotifs = getNotifications().filter(n => !n.read).length;
 
   container.innerHTML = `
     <div class="app-shell" data-theme="${settings.theme}">
@@ -72,7 +74,7 @@ function renderAppShell(container, currentTab) {
           </div>
           <div class="nav-item${currentTab === 'ai-studio' ? ' active' : ''}" data-nav="ai-studio">
             ${icon('sparkles')} <span class="nav-label">AI Studio</span>
-            <span class="nav-badge">PRO</span>
+            <span class="nav-badge" id="ai-upgrade-badge" title="Click to Upgrade Plan">PRO</span>
           </div>
 
           <span class="nav-section-title">Tools</span>
@@ -92,37 +94,76 @@ function renderAppShell(container, currentTab) {
           </div>
         </nav>
 
-        <div class="sidebar-footer">
-          <div class="sidebar-profile">
+        <div class="sidebar-footer" style="position: relative;">
+          <div class="sidebar-profile" id="shell-sidebar-profile" style="cursor: pointer;">
             <div class="avatar">${user.avatar || 'AM'}</div>
             <div class="profile-info">
               <span class="profile-name">${escapeHtml(user.name)}</span>
-              <span class="profile-plan">${user.plan} Plan</span>
+              <span class="profile-plan" id="shell-user-plan">${user.plan} Plan</span>
             </div>
+          </div>
+
+          <!-- Profile Dropdown -->
+          <div class="profile-dropdown" id="shell-profile-dropdown" style="bottom: calc(100% + 8px); left: 12px; right: 12px; width: auto;">
+            <button class="profile-dropdown-item" id="prof-upgrade-btn">
+              ${icon('sparkles')} Upgrade Plan
+            </button>
+            <button class="profile-dropdown-item" id="prof-theme-btn">
+              ${icon('sun')} Toggle Theme (${settings.theme})
+            </button>
+            <div class="profile-dropdown-divider"></div>
+            <button class="profile-dropdown-item" id="prof-brand-btn">
+              ${icon('palette')} Brand Kit
+            </button>
           </div>
         </div>
       </aside>
 
       <!-- Top Bar -->
       <header class="topbar">
-        <div class="search-container">
-          <input type="text" class="search-bar" placeholder="Search projects, templates..." />
+        <div class="search-container" style="position: relative;">
+          <input type="text" class="search-bar" id="shell-search-input" placeholder="Search designs, templates..." autocomplete="off" />
           <div style="position: absolute; left: 14px; top: 11px; color: var(--text-tertiary);">${icon('cursor')}</div>
+          <div class="search-dropdown" id="shell-search-dropdown"></div>
         </div>
 
-        <div class="topbar-actions">
+        <div class="topbar-actions" style="position: relative;">
           <button class="btn-create" id="shell-new-design-btn">${icon('plus')} Create Design</button>
+          <button class="topbar-btn tooltip" data-tooltip="Notifications" id="shell-notif-btn">
+            ${icon('bell')}
+            ${unreadNotifs > 0 ? `<span class="notification-dot" style="display:block;"></span>` : ''}
+          </button>
+
+          <!-- Notifications Dropdown Panel -->
+          <div class="notification-panel" id="shell-notif-panel">
+            <div class="notification-panel-header">
+              <span class="notification-panel-title">Notifications</span>
+              <button class="notification-clear-btn" id="shell-clear-notifs">Clear All</button>
+            </div>
+            <div class="notification-list" id="shell-notif-list"></div>
+          </div>
         </div>
       </header>
 
-      <!-- Main Shell Content area -->
+      <!-- Main Shell Content Area -->
       <main class="main-content" id="shell-view-content"></main>
     </div>
   `;
 
-  // Bind shell navigation
+  // Bind Sidebar Navigation
   container.querySelectorAll('[data-nav]').forEach(item => {
-    item.addEventListener('click', () => renderView(item.dataset.nav));
+    item.addEventListener('click', (e) => {
+      if (e.target.closest('#ai-upgrade-badge')) return;
+      renderView(item.dataset.nav);
+    });
+  });
+
+  document.getElementById('ai-upgrade-badge')?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    PaymentGateway.renderCheckoutModal('Professional', '$29', (plan) => {
+      const planEl = document.getElementById('shell-user-plan');
+      if (planEl) planEl.textContent = `${plan} Plan`;
+    });
   });
 
   document.getElementById('shell-logo')?.addEventListener('click', (e) => {
@@ -136,6 +177,62 @@ function renderAppShell(container, currentTab) {
     renderView('editor', proj);
   });
 
+  // Profile Dropdown Toggle & Actions
+  const profileBtn = document.getElementById('shell-sidebar-profile');
+  const profileDropdown = document.getElementById('shell-profile-dropdown');
+
+  profileBtn?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    profileDropdown?.classList.toggle('visible');
+  });
+
+  document.getElementById('prof-upgrade-btn')?.addEventListener('click', () => {
+    profileDropdown?.classList.remove('visible');
+    PaymentGateway.renderCheckoutModal('Professional', '$29', (plan) => {
+      const planEl = document.getElementById('shell-user-plan');
+      if (planEl) planEl.textContent = `${plan} Plan`;
+    });
+  });
+
+  document.getElementById('prof-theme-btn')?.addEventListener('click', () => {
+    profileDropdown?.classList.remove('visible');
+    const newTheme = settings.theme === 'dark' ? 'light' : 'dark';
+    settings.theme = newTheme;
+    document.querySelector('.app-shell')?.setAttribute('data-theme', newTheme);
+  });
+
+  document.getElementById('prof-brand-btn')?.addEventListener('click', () => {
+    profileDropdown?.classList.remove('visible');
+    renderView('brand-kit');
+  });
+
+  // Notifications Toggle
+  const notifBtn = document.getElementById('shell-notif-btn');
+  const notifPanel = document.getElementById('shell-notif-panel');
+  const notifList = document.getElementById('shell-notif-list');
+
+  notifBtn?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const isVisible = notifPanel?.classList.contains('visible');
+    if (!isVisible) {
+      markNotificationsRead();
+      renderNotificationList(notifList);
+      notifPanel?.classList.add('visible');
+    } else {
+      notifPanel?.classList.remove('visible');
+    }
+  });
+
+  document.getElementById('shell-clear-notifs')?.addEventListener('click', () => {
+    renderNotificationList(notifList, true);
+  });
+
+  // Document Click to Close Dropdowns
+  document.addEventListener('click', () => {
+    profileDropdown?.classList.remove('visible');
+    notifPanel?.classList.remove('visible');
+  });
+
   // Render Inner View Content
   const mainContent = document.getElementById('shell-view-content');
   if (!mainContent) return;
@@ -147,6 +244,23 @@ function renderAppShell(container, currentTab) {
   else if (currentTab === 'admin') renderAdminPanel(mainContent);
   else if (currentTab === 'brand-kit') renderBrandKitView(mainContent);
   else if (currentTab === 'trash') renderTrashView(mainContent);
+}
+
+function renderNotificationList(container, clear = false) {
+  if (!container) return;
+  const list = clear ? [] : getNotifications();
+
+  if (list.length === 0) {
+    container.innerHTML = `<div style="padding: 24px; text-align: center; color: var(--text-tertiary); font-size: 13px;">No notifications</div>`;
+    return;
+  }
+
+  container.innerHTML = list.map(n => `
+    <div class="notification-item" style="padding: 10px; border-bottom: 1px solid var(--border-subtle);">
+      <div style="font-size: 13px; font-weight: 500;">${escapeHtml(n.message)}</div>
+      <div style="font-size: 10px; color: var(--text-tertiary); margin-top: 2px;">Recently</div>
+    </div>
+  `).join('');
 }
 
 function renderDashboardView(container) {

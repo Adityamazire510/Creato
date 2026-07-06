@@ -1,8 +1,9 @@
 // ============================================
-// CREATO — SaaS Landing Page Renderer
+// CREATO — SaaS Landing Page Renderer & Checkout Connectors
 // ============================================
 
 import { icon } from '../utils/icons.js';
+import { PaymentGateway } from './billing.js';
 
 export function renderLandingPage(container, onGetStarted) {
   container.innerHTML = `
@@ -146,7 +147,7 @@ export function renderLandingPage(container, onGetStarted) {
               <div class="pricing-feature-item">${icon('check')} 10 AI Generations/mo</div>
               <div class="pricing-feature-item">${icon('check')} 1GB Storage</div>
             </div>
-            <button class="btn-hero-secondary" class="plan-btn" style="width: 100%;">Start Free</button>
+            <button class="btn-hero-secondary" id="plan-btn-free" style="width: 100%;">Start Free</button>
           </div>
 
           <!-- Starter Plan -->
@@ -159,7 +160,7 @@ export function renderLandingPage(container, onGetStarted) {
               <div class="pricing-feature-item">${icon('check')} 200 AI Generations/mo</div>
               <div class="pricing-feature-item">${icon('check')} SVG Vector Export</div>
             </div>
-            <button class="btn-hero-secondary" style="width: 100%;">Upgrade to Starter</button>
+            <button class="btn-hero-secondary" id="plan-btn-starter" style="width: 100%;">Upgrade to Starter</button>
           </div>
 
           <!-- Professional Plan -->
@@ -174,7 +175,7 @@ export function renderLandingPage(container, onGetStarted) {
               <div class="pricing-feature-item">${icon('check')} Team Collaboration (5 seats)</div>
               <div class="pricing-feature-item">${icon('check')} Brand Kit Manager</div>
             </div>
-            <button class="btn-hero-primary" style="width: 100%;">Get Professional</button>
+            <button class="btn-hero-primary" id="plan-btn-pro" style="width: 100%;">Get Professional</button>
           </div>
 
           <!-- Enterprise Plan -->
@@ -187,7 +188,7 @@ export function renderLandingPage(container, onGetStarted) {
               <div class="pricing-feature-item">${icon('check')} Priority AI Processing</div>
               <div class="pricing-feature-item">${icon('check')} 24/7 Priority Support</div>
             </div>
-            <button class="btn-hero-secondary" style="width: 100%;">Contact Sales</button>
+            <button class="btn-hero-secondary" id="plan-btn-enterprise" style="width: 100%;">Get Enterprise</button>
           </div>
         </div>
       </section>
@@ -254,9 +255,22 @@ export function renderLandingPage(container, onGetStarted) {
     </div>
   `;
 
-  // Bind CTAs
+  // Bind CTAs & Payment Checkout Triggers
   const launch = () => { if (onGetStarted) onGetStarted(); };
   document.getElementById('landing-get-started')?.addEventListener('click', launch);
   document.getElementById('hero-launch-app')?.addEventListener('click', launch);
   document.getElementById('landing-login-btn')?.addEventListener('click', launch);
+  document.getElementById('hero-watch-demo')?.addEventListener('click', launch);
+
+  // Pricing Plan Checkout Modal Triggers
+  document.getElementById('plan-btn-free')?.addEventListener('click', launch);
+  document.getElementById('plan-btn-starter')?.addEventListener('click', () => {
+    PaymentGateway.renderCheckoutModal('Starter', '$12', () => launch());
+  });
+  document.getElementById('plan-btn-pro')?.addEventListener('click', () => {
+    PaymentGateway.renderCheckoutModal('Professional', '$29', () => launch());
+  });
+  document.getElementById('plan-btn-enterprise')?.addEventListener('click', () => {
+    PaymentGateway.renderCheckoutModal('Enterprise', '$79', () => launch());
+  });
 }
