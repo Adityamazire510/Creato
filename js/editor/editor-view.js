@@ -1,5 +1,5 @@
 // ============================================
-// CREATO — Master Editor Workspace (Picsart Style)
+// CREATO — Master Editor Workspace (Picsart & Figma Style)
 // ============================================
 
 import { icon } from '../utils/icons.js';
@@ -18,7 +18,7 @@ export function renderFullEditorWorkspace(container, project, onBackToDashboard)
       <!-- Editor Main Layout -->
       <div class="editor-main-body">
 
-        <!-- Leftmost Tool Ribbon (Picsart Style Tabs) -->
+        <!-- Leftmost Tool Ribbon -->
         <div class="editor-left-tools">
           <button class="tool-btn active" data-ribbon-tab="templates">
             ${icon('grid')}
@@ -59,14 +59,14 @@ export function renderFullEditorWorkspace(container, project, onBackToDashboard)
             <canvas id="real-picsart-canvas"></canvas>
           </div>
 
-          <!-- Floating Contextual Action Bar (Picsart Style) -->
+          <!-- Floating Contextual Action Bar -->
           <div id="floating-element-toolbar" style="display:none; position: absolute; top: 20px; background: var(--bg-surface); border: 1px solid var(--border-default); border-radius: var(--radius-full); padding: 4px 12px; gap: 8px; align-items: center; box-shadow: var(--shadow-lg); z-index: 50;">
             <button class="topbar-btn" id="float-duplicate-btn" title="Duplicate">${icon('copy')}</button>
             <button class="topbar-btn" id="float-delete-btn" title="Delete" style="color: #EF4444;">${icon('trash')}</button>
           </div>
 
           <!-- Zoom Indicator -->
-          <div class="canvas-zoom-bar">100% Canvas</div>
+          <div class="canvas-zoom-bar" id="zoom-bar-text">100% Canvas</div>
         </div>
 
         <!-- Right Properties & Layers Panel -->
@@ -83,14 +83,14 @@ export function renderFullEditorWorkspace(container, project, onBackToDashboard)
     </div>
   `;
 
-  // Render Header
-  const headerMount = document.getElementById('editor-header-mount');
-  renderEditorHeader(headerMount, project, onBackToDashboard, () => handleExportCanvas(canvasEl));
-
   // Initialize Canvas
   const canvasEl = document.getElementById('real-picsart-canvas');
   const canvasEngine = new CanvasEngine(canvasEl, project.width || 1080, project.height || 1080);
   canvasEngine.setElements(project.elements || []);
+
+  // Render Header
+  const headerMount = document.getElementById('editor-header-mount');
+  renderEditorHeader(headerMount, project, canvasEngine, onBackToDashboard);
 
   // Initialize Left Drawer
   const drawerMount = document.getElementById('editor-left-drawer-mount');
@@ -135,19 +135,22 @@ export function renderFullEditorWorkspace(container, project, onBackToDashboard)
     } else if (floatingBar) {
       floatingBar.style.display = 'none';
     }
+
+    const zoomText = document.getElementById('zoom-bar-text');
+    if (zoomText) zoomText.textContent = `${Math.round(canvasEngine.zoom * 100)}% Canvas`;
   }
 
   canvasEngine.onSelect(() => updateRightPanel());
   updateRightPanel();
 
-  document.getElementById('tab-props-btn')?.addEventListener('click', (e) => {
+  document.getElementById('tab-props-btn')?.addEventListener('click', () => {
     document.getElementById('tab-props-btn').classList.add('active');
     document.getElementById('tab-layers-btn').classList.remove('active');
     activeRightTab = 'props';
     updateRightPanel();
   });
 
-  document.getElementById('tab-layers-btn')?.addEventListener('click', (e) => {
+  document.getElementById('tab-layers-btn')?.addEventListener('click', () => {
     document.getElementById('tab-layers-btn').classList.add('active');
     document.getElementById('tab-props-btn').classList.remove('active');
     activeRightTab = 'layers';
@@ -176,14 +179,4 @@ export function renderFullEditorWorkspace(container, project, onBackToDashboard)
       updateRightPanel();
     }
   });
-}
-
-function handleExportCanvas(canvasEl) {
-  if (canvasEl) {
-    const dataUrl = canvasEl.toDataURL('image/png');
-    const a = document.createElement('a');
-    a.href = dataUrl;
-    a.download = 'creato-picsart-design.png';
-    a.click();
-  }
 }
