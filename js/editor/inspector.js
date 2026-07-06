@@ -1,5 +1,5 @@
 // ============================================
-// CREATO — Right Properties Inspector & Layer Tree
+// CREATO — Right Properties Inspector & Blend / Mask Controls
 // ============================================
 
 import { icon } from '../utils/icons.js';
@@ -31,21 +31,44 @@ export function renderInspector(container, canvasEngine) {
 
   container.innerHTML = `
     <div class="panel-section">
-      <div class="panel-section-title">Selected Element</div>
+      <div class="panel-section-title">Selected Element (${selectedEl.type.toUpperCase()})</div>
 
       <!-- Text Editing Input (if text) -->
       ${selectedEl.type === 'text' ? `
         <div style="margin-bottom: 12px;">
-          <label class="form-label" style="font-size: 11px;">Text Content</label>
-          <input type="text" class="form-input" id="prop-text-content" value="${selectedEl.text}" style="height: 32px; font-size: 13px;" />
+          <label class="form-label" style="font-size: 11px;">Text Content (Word in Image)</label>
+          <input type="text" class="form-input" id="prop-text-content" value="${selectedEl.text}" style="height: 34px; font-size: 13px;" />
         </div>
       ` : ''}
 
-      <!-- Color Fill -->
+      <!-- Blend Mode (Image in Image / Double Exposure / Word Blending) -->
       <div class="prop-row">
-        <span class="prop-label">Color Fill</span>
-        <input type="color" id="prop-color-fill" value="${selectedEl.fill.startsWith('#') ? selectedEl.fill : '#7C3AED'}" style="width: 36px; height: 28px; padding: 0; cursor: pointer; border: none; background: none;" />
+        <span class="prop-label">Blend Mode</span>
+        <select class="sort-select" id="prop-blend-mode" style="height: 28px; padding: 0 8px; font-size: 11px; width: 120px;">
+          <option value="source-over"${selectedEl.blendMode === 'source-over' ? ' selected' : ''}>Normal</option>
+          <option value="screen"${selectedEl.blendMode === 'screen' ? ' selected' : ''}>Screen (Double Exposure)</option>
+          <option value="multiply"${selectedEl.blendMode === 'multiply' ? ' selected' : ''}>Multiply (Darken)</option>
+          <option value="overlay"${selectedEl.blendMode === 'overlay' ? ' selected' : ''}>Overlay (Contrast)</option>
+          <option value="soft-light"${selectedEl.blendMode === 'soft-light' ? ' selected' : ''}>Soft Light</option>
+          <option value="color-dodge"${selectedEl.blendMode === 'color-dodge' ? ' selected' : ''}>Color Dodge</option>
+          <option value="darken"${selectedEl.blendMode === 'darken' ? ' selected' : ''}>Darken</option>
+          <option value="lighten"${selectedEl.blendMode === 'lighten' ? ' selected' : ''}>Lighten</option>
+        </select>
       </div>
+
+      <!-- Layer Clipping Mask Switcher -->
+      <div class="prop-row">
+        <span class="prop-label">Clip to Layer Below</span>
+        <input type="checkbox" id="prop-clip-below" ${selectedEl.clipToBelow ? 'checked' : ''} style="width: 16px; height: 16px; cursor: pointer;" />
+      </div>
+
+      <!-- Color Fill (for Text and Shapes) -->
+      ${selectedEl.type !== 'image' ? `
+        <div class="prop-row">
+          <span class="prop-label">Color Fill</span>
+          <input type="color" id="prop-color-fill" value="${selectedEl.fill && selectedEl.fill.startsWith('#') ? selectedEl.fill : '#FFFFFF'}" style="width: 36px; height: 28px; padding: 0; cursor: pointer; border: none; background: none;" />
+        </div>
+      ` : ''}
 
       <!-- Opacity Slider -->
       <div class="prop-row">
@@ -71,7 +94,7 @@ export function renderInspector(container, canvasEngine) {
         </div>
       </div>
 
-      <!-- Text Font Size (if text) -->
+      <!-- Text Font Size & Font Family (if text) -->
       ${selectedEl.type === 'text' ? `
         <div class="prop-row">
           <span class="prop-label">Font Size</span>
@@ -81,7 +104,7 @@ export function renderInspector(container, canvasEngine) {
 
       <div style="margin-top: 16px; display: flex; gap: 8px;">
         <button class="btn btn-secondary" id="btn-delete-element" style="flex: 1; padding: 6px; font-size: 12px; justify-content: center; color: #EF4444;">
-          ${icon('trash')} Delete
+          ${icon('trash')} Delete Element
         </button>
       </div>
     </div>
@@ -90,6 +113,16 @@ export function renderInspector(container, canvasEngine) {
   // Bind Events
   document.getElementById('prop-text-content')?.addEventListener('input', (e) => {
     selectedEl.text = e.target.value;
+    canvasEngine.render();
+  });
+
+  document.getElementById('prop-blend-mode')?.addEventListener('change', (e) => {
+    selectedEl.blendMode = e.target.value;
+    canvasEngine.render();
+  });
+
+  document.getElementById('prop-clip-below')?.addEventListener('change', (e) => {
+    selectedEl.clipToBelow = e.target.checked;
     canvasEngine.render();
   });
 

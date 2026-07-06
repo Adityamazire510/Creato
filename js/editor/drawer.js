@@ -1,5 +1,5 @@
 // ============================================
-// CREATO — Left Drawer Panel (Photos, Uploads, Backgrounds & Templates)
+// CREATO — Left Drawer Panel (Photos, Words in Image & Double Exposure)
 // ============================================
 
 import { icon } from '../utils/icons.js';
@@ -86,11 +86,18 @@ export class EditorDrawer {
   renderPhotosTab() {
     return `
       <!-- Upload Local Photo Button -->
-      <div style="margin-bottom: 16px;">
+      <div style="margin-bottom: 12px;">
         <button class="btn btn-primary" id="btn-upload-local-photo" style="width: 100%; justify-content: center; gap: 8px; padding: 10px; font-size: 13px;">
           ${icon('upload')} Upload Photo from Device
         </button>
         <input type="file" id="input-local-photo" style="display: none;" accept="image/*" />
+      </div>
+
+      <!-- Quick Action: Image in Image (Double Exposure Overlay) -->
+      <div style="margin-bottom: 16px;">
+        <button class="btn btn-secondary" id="btn-add-double-exposure" style="width: 100%; justify-content: center; gap: 8px; padding: 8px; font-size: 12px;">
+          ${icon('sparkles')} 🖼️ Add Image-in-Image (Double Exposure)
+        </button>
       </div>
 
       <h4 style="font-size: 12px; font-weight: 700; color: var(--text-tertiary); text-transform: uppercase; margin-bottom: 8px;">Stock Photos</h4>
@@ -106,15 +113,19 @@ export class EditorDrawer {
 
   renderTextTab() {
     return `
+      <!-- Quick Action: Word in Image -->
+      <div style="margin-bottom: 12px;">
+        <button class="btn btn-primary" id="btn-add-word-in-image" style="width: 100%; justify-content: center; gap: 8px; padding: 10px; font-size: 13px;">
+          ${icon('type')} 🔤 Add Word / Text on Image
+        </button>
+      </div>
+
       <div style="display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px;">
-        <button class="btn btn-primary" id="add-heading-btn" style="justify-content: flex-start; padding: 12px 16px;">
-          ${icon('type')} <span style="font-size: 18px; font-weight: 800;">Add a Heading</span>
+        <button class="btn btn-secondary" id="add-heading-btn" style="justify-content: flex-start; padding: 10px 16px;">
+          ${icon('type')} <span style="font-size: 16px; font-weight: 800;">Add a Heading</span>
         </button>
-        <button class="btn btn-secondary" id="add-subheading-btn" style="justify-content: flex-start; padding: 10px 16px;">
+        <button class="btn btn-secondary" id="add-subheading-btn" style="justify-content: flex-start; padding: 8px 16px;">
           ${icon('type')} <span style="font-size: 14px; font-weight: 600;">Add a Subheading</span>
-        </button>
-        <button class="btn btn-secondary" id="add-body-btn" style="justify-content: flex-start; padding: 8px 16px;">
-          ${icon('type')} <span style="font-size: 12px;">Add Body Text</span>
         </button>
       </div>
 
@@ -145,7 +156,6 @@ export class EditorDrawer {
 
   renderBackgroundsTab() {
     return `
-      <!-- Upload Custom Background Image Button -->
       <div style="margin-bottom: 16px;">
         <button class="btn btn-primary" id="btn-upload-local-bg" style="width: 100%; justify-content: center; gap: 8px; padding: 10px; font-size: 13px;">
           ${icon('image')} Upload Custom Background Image
@@ -184,6 +194,21 @@ export class EditorDrawer {
   }
 
   bindEvents() {
+    // Word in Image Action
+    document.getElementById('btn-add-word-in-image')?.addEventListener('click', () => {
+      if (this.canvasEngine) {
+        this.canvasEngine.addTextOverImage('WORD IN IMAGE', '#FFFFFF', 52);
+      }
+    });
+
+    // Image-in-Image Double Exposure Overlay Action
+    document.getElementById('btn-add-double-exposure')?.addEventListener('click', () => {
+      if (this.canvasEngine) {
+        const sampleUrl = STOCK_PHOTOS[Math.floor(Math.random() * STOCK_PHOTOS.length)].url;
+        this.canvasEngine.addImageElement(sampleUrl, 'Double Exposure Image', 'screen');
+      }
+    });
+
     // Photos: Click Stock Photo -> Add to Canvas
     this.drawer.querySelectorAll('[data-add-photo]').forEach(item => {
       item.addEventListener('click', () => {
@@ -249,9 +274,6 @@ export class EditorDrawer {
     });
     document.getElementById('add-subheading-btn')?.addEventListener('click', () => {
       this.canvasEngine.addElement('text', { text: 'Add a Subheading', fontSize: 32, fill: '#E2E8F0', font: 'Inter' });
-    });
-    document.getElementById('add-body-btn')?.addEventListener('click', () => {
-      this.canvasEngine.addElement('text', { text: 'Add body text description here', fontSize: 18, fill: '#94A3B8', font: 'Inter' });
     });
 
     // Font Presets

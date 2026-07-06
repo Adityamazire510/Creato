@@ -1,5 +1,6 @@
 // ============================================
-// CREATO — Interactive Canvas Engine with Mouse Drag Resizing & Corner Handles
+// CREATO — Canvas Engine with Blend Modes, Double Exposure & Layer Masking
+// Supports: "Word in Image" & "Image in Image" Blending
 // ============================================
 
 export class CanvasEngine {
@@ -54,6 +55,8 @@ export class CanvasEngine {
         font: el.font || 'Outfit',
         url: el.url || null,
         opacity: el.opacity !== undefined ? el.opacity : 1,
+        blendMode: el.blendMode || 'source-over', // Normal, multiply, screen, overlay, etc.
+        clipToBelow: el.clipToBelow || false,
         rotation: el.rotation || 0,
         locked: el.locked || false,
         visible: el.visible !== undefined ? el.visible : true,
@@ -90,7 +93,7 @@ export class CanvasEngine {
     img.src = url;
   }
 
-  addImageElement(url, name = 'Photo') {
+  addImageElement(url, name = 'Photo', blendMode = 'source-over') {
     const img = new Image();
     img.crossOrigin = 'anonymous';
     img.onload = () => {
@@ -117,6 +120,8 @@ export class CanvasEngine {
         url,
         imageObj: img,
         opacity: 1,
+        blendMode,
+        clipToBelow: false,
         rotation: 0,
         locked: false,
         visible: true,
@@ -128,6 +133,32 @@ export class CanvasEngine {
       if (this.onSelectCallback) this.onSelectCallback(newEl);
     };
     img.src = url;
+  }
+
+  addTextOverImage(textStr = 'WORD IN IMAGE', fill = '#FFFFFF', fontSize = 48) {
+    const newEl = {
+      id: `el_txt_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+      type: 'text',
+      x: Math.round(this.width / 2 - 200),
+      y: Math.round(this.height / 2 - 30),
+      width: 400,
+      height: 70,
+      text: textStr,
+      fontSize,
+      font: 'Outfit',
+      fill,
+      opacity: 1,
+      blendMode: 'source-over',
+      clipToBelow: false,
+      rotation: 0,
+      locked: false,
+      visible: true,
+    };
+    this.elements.push(newEl);
+    this.selectedElementId = newEl.id;
+    this.render();
+    if (this.onSelectCallback) this.onSelectCallback(newEl);
+    return newEl;
   }
 
   addElement(type, props = {}) {
@@ -145,7 +176,9 @@ export class CanvasEngine {
       fontSize: props.fontSize || 36,
       font: props.font || 'Outfit',
       url: props.url || null,
-      opacity: 1,
+      opacity: props.opacity !== undefined ? props.opacity : 1,
+      blendMode: props.blendMode || 'source-over',
+      clipToBelow: props.clipToBelow || false,
       rotation: 0,
       locked: false,
       visible: true,
@@ -169,7 +202,7 @@ export class CanvasEngine {
   render() {
     this.ctx.clearRect(0, 0, this.width, this.height);
 
-    // 1. Draw Background
+    // 1. Draw Canvas Background (Solid / Gradient / Image)
     if (this.backgroundImageObj) {
       this.ctx.drawImage(this.backgroundImageObj, 0, 0, this.width, this.height);
     } else {
@@ -177,12 +210,15 @@ export class CanvasEngine {
       this.ctx.fillRect(0, 0, this.width, this.height);
     }
 
-    // 2. Draw Elements Layer by Layer
+    // 2. Draw Layer Hierarchy with Blend Modes & Double Exposure Composite Operations
     this.elements.forEach(el => {
       if (!el.visible) return;
 
       this.ctx.save();
       this.ctx.globalAlpha = el.opacity;
+
+      // Set Composite Blend Mode (multiply, screen, overlay, color-dodge, source-over, source-in)
+      this.ctx.globalCompositeOperation = el.clipToBelow ? 'source-in' : (el.blendMode || 'source-over');
 
       const cx = el.x + el.width / 2;
       const cy = el.y + el.height / 2;
@@ -227,7 +263,7 @@ export class CanvasEngine {
 
       this.ctx.restore();
 
-      // Draw Selection Bounding Box (Picsart Cyan accent)
+      // Draw Selection Bounding Box with Cyan Highlight
       if (el.id === this.selectedElementId) {
         this.drawSelectionBox(el);
       }
@@ -256,7 +292,6 @@ export class CanvasEngine {
     this.ctx.lineWidth = 2.5;
 
     const handles = this.getHandles(el);
-
     Object.values(handles).forEach(h => {
       this.ctx.fillRect(h.x, h.y, h.size, h.size);
       this.ctx.strokeRect(h.x, h.y, h.size, h.size);
